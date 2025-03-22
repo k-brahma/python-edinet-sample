@@ -21,6 +21,22 @@
    - 企業間の財務指標比較グラフの作成（売上高、営業利益、当期純利益）
    - 個別企業の財務指標推移グラフの作成
 
+## 生成されるレポート例
+
+このツールを実行すると、以下のような財務分析グラフが自動生成されます。
+
+### 企業間の売上高比較
+![売上高比較](img/revenue_comparison.png)
+
+### 企業間の営業利益比較
+![営業利益比較](img/operating_income_comparison.png)
+
+### 企業間の当期純利益比較
+![当期純利益比較](img/net_income_comparison.png)
+
+### 個別企業の財務指標推移（例：トヨタ自動車）
+![トヨタ自動車_財務推移](img/toyota.png)
+
 ## ディレクトリ構成
 
 ```
@@ -110,6 +126,16 @@ edinet/
 
 ### 基本的な実行方法
 
+#### 接続テスト
+
+EDINET APIへの接続をテストするには、以下のコマンドを実行します：
+
+```
+python connection_test.py
+```
+
+#### すべての処理を実行する
+
 すべての処理を一括実行するには、メインスクリプトを実行します：
 
 ```
@@ -121,14 +147,6 @@ python main.py
 2. 有価証券報告書の検索（edinet/document_processor.py）
 3. XBRLデータの取得と財務情報抽出（xbrl/processor.py、xbrl/analyzer.py）
 4. 財務データの可視化（xbrl/visualizer.py）
-
-### 接続テスト
-
-EDINET APIへの接続をテストするには、以下のコマンドを実行します：
-
-```
-python connection_test.py
-```
 
 ### カスタム設定
 
