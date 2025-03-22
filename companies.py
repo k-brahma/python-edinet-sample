@@ -116,14 +116,10 @@ def find_auto_manufacturers(csv_path=None):
 
         # 主要自動車メーカーを検索
         result = []
-        for company_name in config.AUTO_MANUFACTURERS:
-            # 完全一致で検索する名前がある場合はそれを使用
-            if company_name in config.COMPANY_FULL_NAMES:
-                full_name = config.COMPANY_FULL_NAMES[company_name]
-                matches = transport[transport["提出者名"] == full_name]
-            else:
-                # 通常の部分一致検索
-                matches = transport[transport["提出者名"].str.contains(company_name, na=False)]
+        for company_name in config.COMPANY_FULL_NAMES:
+            # 正式名称で検索
+            full_name = config.COMPANY_FULL_NAMES[company_name]
+            matches = transport[transport["提出者名"] == full_name]
             
             if not matches.empty:
                 row = matches.iloc[0]

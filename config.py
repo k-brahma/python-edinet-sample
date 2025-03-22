@@ -44,7 +44,6 @@ START_YEAR = 2018
 END_YEAR = 2023
 TARGET_MONTH = 6
 
-# 自動車メーカーリスト
 # 企業名の正式名称マッピング
 COMPANY_FULL_NAMES = {
     "トヨタ": "トヨタ自動車株式会社",
