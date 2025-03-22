@@ -21,6 +21,41 @@
    - 企業間の財務指標比較グラフの作成（売上高、営業利益、当期純利益）
    - 個別企業の財務指標推移グラフの作成
 
+## ディレクトリ構成
+
+```
+edinet/
+│
+├── collector/               # データ収集関連モジュール
+│   ├── companies.py         # 企業情報取得モジュール
+│   └── documents.py         # 書類情報取得モジュール
+│
+├── config/                  # 設定ファイル
+│   ├── base_settings.py     # 基本設定
+│   └── settings.py          # ユーザー設定
+│
+├── edinet/                  # EDINETアクセス関連
+│   ├── edinet_core.py       # EDINET API コア機能
+│   └── document_processor.py # 書類処理機能
+│
+├── xbrl/                    # XBRL処理関連
+│   ├── analyzer.py          # XBRLデータ分析
+│   ├── processor.py         # XBRLデータ処理
+│   └── visualizer.py        # データ可視化
+│
+├── data/                    # 入力データ保存ディレクトリ
+│   └── EdinetcodeDlInfo.zip # EDINETコードリスト（必須）
+│
+├── results/                 # 出力結果
+│   ├── csv/                 # CSVデータ
+│   └── charts/              # 生成されたグラフ
+│
+├── main.py                  # メイン実行スクリプト
+├── requirements.txt         # 必要なライブラリリスト
+├── .env                     # 環境変数設定ファイル
+└── .env.sample              # 環境変数設定サンプル
+```
+
 ## 必要環境
 
 - Python 3.8以上
@@ -48,14 +83,30 @@
    pip install -r requirements.txt
    ```
 
-4. EDINET APIキーの設定（オプション）
-   - `.env`ファイルを作成し、以下の内容を記述
+4. EDINETコードリストの準備（必須）
+   - EDINET公式サイト（https://disclosure.edinet-fsa.go.jp/）にアクセス
+   - トップページの「コード一覧・EDINET提出書類公開サイト」リンクをクリック
+   - ページ中央下部の「EDINETコード一覧」ボタンをクリック
+   - ダウンロードが開始されます。ファイル名は「EdinetcodeDlInfo.zip」となります
+   - ダウンロードしたZIPファイルを `data/EdinetcodeDlInfo.zip` に配置してください
+   - 注意：EDINETコードリストは定期的に更新されるため、最新のデータを使用することをお勧めします
+   - このZIPファイルにはCSV形式の企業情報が含まれており、本ツールの企業情報抽出に必須です
+
+5. EDINET APIキーの設定（オプション）
+   - `.env.sample`ファイルを`.env`にコピーして編集
    ```
    EDINET_API_KEY=あなたのAPIキー
    ```
    - APIキーがなくても基本機能は動作しますが、一部の機能が制限される場合があります
 
 ## 使い方
+
+### 前提条件
+
+このプログラムを実行する前に、必ず以下の準備が必要です：
+
+1. EDINETコードリストのZIPファイルが `data/EdinetcodeDlInfo.zip` に配置されていること
+2. 必要なPythonライブラリがインストールされていること
 
 ### 基本的な実行方法
 
@@ -66,43 +117,34 @@ python main.py
 ```
 
 このコマンドにより以下の処理が順番に実行されます：
-1. 企業情報の取得（companies.py）
-2. 有価証券報告書の検索（research.py）
-3. XBRLデータの取得と財務情報抽出（xbrl_getter_async.py）
+1. 企業情報の取得（collector/companies.py）
+2. 有価証券報告書の検索（edinet/document_processor.py）
+3. XBRLデータの取得と財務情報抽出（xbrl/processor.py、xbrl/analyzer.py）
+4. 財務データの可視化（xbrl/visualizer.py）
+
+### 接続テスト
+
+EDINET APIへの接続をテストするには、以下のコマンドを実行します：
+
+```
+python connection_test.py
+```
 
 ### カスタム設定
 
-`config.py`ファイルを編集することで、様々な設定をカスタマイズできます：
+`config/settings.py`ファイルを編集することで、様々な設定をカスタマイズできます：
 
-- `AUTO_MANUFACTURERS`: 分析対象の企業名リスト
-- `START_YEAR`, `END_YEAR`: データ取得期間
-- `CHART_TOP_COMPANIES`: グラフに表示する上位企業数
-
-### ステップごとの個別実行
-
-特定のステップのみを実行したい場合は、以下のように個別のスクリプトを実行できます：
-
-1. 企業情報の取得のみ
-   ```
-   python companies.py
-   ```
-
-2. 有価証券報告書の検索のみ
-   ```
-   python research.py
-   ```
-
-3. XBRLデータの取得と分析のみ
-   ```
-   python xbrl_getter_async.py
-   ```
+- 分析対象の企業設定
+- データ取得期間
+- データ取得対象月
+- グラフに表示する上位企業数
 
 ## 出力ファイル
 
 実行後、以下のディレクトリとファイルが生成されます：
 
 - `results/csv/company_info.json`: 対象企業の基本情報
-- `results/csv/fixed_filtered_securities_reports.csv`: 検索された有価証券報告書情報
+- `results/csv/filtered_securities_reports.csv`: 検索された有価証券報告書情報
 - `results/csv/financial_indicators.csv`: 抽出された財務指標データ
 - `results/csv/all_companies_financial_trends.csv`: 全企業の財務推移データ
 - `results/charts/`: 財務指標比較グラフ
@@ -121,13 +163,21 @@ python main.py
 ## トラブルシューティング
 
 1. **企業情報が正しく取得できない場合**
-   - EDINETコードリストを手動でダウンロードして、`data/EdinetcodeDlInfo.zip`に配置してください
-   - `config.py`の`AUTO_MANUFACTURERS`リストの企業名を正確に指定してください
+   - EDINETコードリストが正しく配置されているか確認してください（`data/EdinetcodeDlInfo.zip`）
+   - ZIPファイルの内容が最新かつ有効であることを確認してください
+   - `config/settings.py`の企業設定を正確に指定してください
 
 2. **グラフの日本語が文字化けする場合**
    - japanize-matplotlibが正しくインストールされているか確認してください
    - 必要に応じて追加の日本語フォントをインストールしてください
 
-3. **特定の企業データが表示されない場合**
-   - `config.py`のリストに対象企業が含まれているか確認してください
-   - 企業名の表記が正確かどうか（「トヨタ」→「トヨタ自動車株式会社」など）確認してください 
+3. **API接続エラーが発生する場合**
+   - `connection_test.py`を実行してAPI接続を確認してください
+   - `.env`ファイルのAPIキー設定を確認してください
+   - インターネット接続状態を確認してください 
+
+4. **EDINETコードリストが見つからない場合**
+   - EDINETのトップページデザインが変更されている可能性があります
+   - 「EDINETコード一覧」や「コード一覧」などのキーワードでページ内を検索してください
+   - あるいはEDINETのヘルプページや「よくある質問」から該当するダウンロードページを探してください
+   - ダウンロードしたファイル名が異なる場合は、`config/base_settings.py`の`EDINETCODE_ZIP_PATH`設定を変更してください

@@ -1,118 +1,209 @@
 """
 EDINET企業情報取得・有価証券報告書データ解析ツール
+
+このプログラムは以下の流れで動作します：
+1. 企業情報の取得と保存（companies.py）
+2. 有価証券報告書の検索・処理（document_processor.py）
+3. XBRLデータの取得と財務情報抽出（xbrl.processor）
 """
 
+import logging
 import os
-import sys
-import time
-import traceback
 
-import companies
-import config
-import research
-import xbrl_getter_async
+from collector import companies
+from config import base_settings
+from edinet import document_processor
+from xbrl import processor  # 新しいパッケージ構造を使用
+
+# ロガーの設定
+logger = logging.getLogger(__name__)
+
+
+def create_required_directories():
+    """必要なディレクトリを作成する
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    OSError
+        ディレクトリの作成に失敗した場合
+    """
+    directories = [
+        base_settings.DATA_DIR,
+        base_settings.RESULTS_DIR,
+        base_settings.XBRL_DOWNLOAD_DIR,
+        base_settings.CHARTS_DIR,
+    ]
+
+    for directory in directories:
+        os.makedirs(directory, exist_ok=True)
+        logger.debug(f"ディレクトリを確認/作成しました: {directory}")
+
+
+def get_company_info():
+    """企業情報の取得と保存を行う
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    RuntimeError
+        企業情報の取得に失敗した場合
+    """
+    logger.info("\n企業情報の取得と保存を実行します")
+
+    result = companies.main()
+    if result != 0:
+        raise RuntimeError("企業情報の取得に失敗しました")
+
+    logger.info("企業情報の取得が完了しました")
+
+
+def search_documents():
+    """有価証券報告書の検索・処理を行う
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    FileNotFoundError
+        企業情報ファイルが見つからない場合
+    RuntimeError
+        有価証券報告書の検索・処理に失敗した場合
+    """
+    logger.info("\n有価証券報告書の検索・処理を実行します")
+
+    # 企業情報ファイルの確認
+    if not os.path.exists(base_settings.COMPANY_INFO_JSON):
+        error_msg = f"企業情報ファイル '{base_settings.COMPANY_INFO_JSON}' が見つかりません"
+        logger.error(error_msg)
+        raise FileNotFoundError(error_msg)
+
+    result = document_processor.main()
+    if result != 0:
+        raise RuntimeError("有価証券報告書の検索・処理に失敗しました")
+
+    logger.info("有価証券報告書の検索・処理が完了しました")
+
+
+def extract_financial_data():
+    """XBRLデータの取得と財務情報抽出を行う
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    FileNotFoundError
+        有価証券報告書データファイルが見つからない場合
+    RuntimeError
+        XBRLデータの取得と財務情報抽出に失敗した場合
+    """
+    logger.info("\nXBRLデータの取得と財務情報抽出を実行します")
+
+    # xbrl.processor.main() を呼び出す（xbrl_getter_async.main() の代わりに）
+    result = processor.main()
+    if result != 0:
+        raise RuntimeError("XBRLデータの取得と財務情報抽出に失敗しました")
+
+    logger.info("XBRLデータの取得と財務情報抽出が完了しました")
+
+
+def show_results_summary():
+    """処理結果の概要を表示する
+
+    Returns
+    -------
+    None
+    """
+    logger.info("\n===== 処理結果の概要 =====")
+
+    # 結果ファイルの存在確認と表示
+    files_to_check = {
+        "企業情報": base_settings.COMPANY_INFO_JSON,
+        "有価証券報告書データ（全件）": base_settings.ALL_DOCUMENTS_CSV,
+        "有価証券報告書データ（フィルタリング済み）": base_settings.FILTERED_DOCUMENTS_CSV,
+        "有価証券報告書データ（最終版）": base_settings.FINAL_SECURITIES_REPORTS_CSV,
+        "財務指標データ": base_settings.FINANCIAL_INDICATORS_CSV,
+        "財務推移データ": base_settings.ALL_COMPANIES_FINANCIAL_TRENDS_CSV,
+    }
+
+    logger.info("結果ファイル:")
+    for description, file_path in files_to_check.items():
+        status = "✓ 存在します" if os.path.exists(file_path) else "✗ 存在しません"
+        logger.info(f"- {description}: {file_path} ({status})")
+
+    # ディレクトリの確認
+    directories = {
+        "結果ディレクトリ": base_settings.RESULTS_DIR,
+        "XBRLデータディレクトリ": base_settings.XBRL_DOWNLOAD_DIR,
+        "チャートディレクトリ": base_settings.CHARTS_DIR,
+    }
+
+    logger.info("\nディレクトリ:")
+    for description, dir_path in directories.items():
+        status = "✓ 存在します" if os.path.exists(dir_path) else "✗ 存在しません"
+        if os.path.exists(dir_path):
+            file_count = len(
+                [
+                    name
+                    for name in os.listdir(dir_path)
+                    if os.path.isfile(os.path.join(dir_path, name))
+                ]
+            )
+            status += f" ({file_count}ファイル)"
+        logger.info(f"- {description}: {dir_path} ({status})")
 
 
 def main():
+    """EDINET企業情報取得・有価証券報告書データ解析のメイン処理
+
+    Returns
+    -------
+    int
+        処理結果コード (0: 成功)
+
+    Raises
+    ------
+    Various exceptions can be raised during the process
     """
-    各モジュールを順番に実行するメイン関数
+    logger.info("===== EDINET企業情報取得・有価証券報告書データ解析ツール =====")
 
-    1. companies.py: 企業情報を取得してJSONに保存
-    2. research.py: EDINETから企業の有価証券報告書情報を検索
-    3. xbrl_getter_async.py: XBRLデータを取得して財務情報を抽出
-    """
-    print("===== EDINET企業情報取得・有価証券報告書データ解析ツール =====")
+    # ディレクトリの準備
+    create_required_directories()
 
-    try:
-        # 1. 企業情報の取得（companies.py）
-        print("\n[Step 1] 企業情報の取得と保存")
-        companies_result = companies.main()
+    # 企業情報の取得
+    get_company_info()
 
-        if companies_result != 0:
-            print(
-                "警告: 企業情報の取得に問題がありました。処理を続行しますが、結果に問題がある可能性があります。"
-            )
-        else:
-            print("\n企業情報の取得が完了しました。\n")
+    # 有価証券報告書の検索・処理
+    search_documents()
 
-        # 2. 有価証券報告書の検索（research.py）
-        print("\n[Step 2] 有価証券報告書の検索")
+    # XBRLデータの取得と財務情報抽出
+    extract_financial_data()
 
-        # 企業情報ファイルの確認
-        if not os.path.exists(config.COMPANY_INFO_JSON):
-            print("警告: 企業情報ファイルが見つかりません。正しく処理できない可能性があります。")
+    # 結果の概要を表示
+    show_results_summary()
 
-        try:
-            research_result = research.main()
-            if research_result != 0:
-                print(
-                    "警告: 有価証券報告書の検索に問題がありました。処理を続行しますが、結果に問題がある可能性があります。"
-                )
-            else:
-                print("\n有価証券報告書の検索が完了しました。\n")
-        except Exception as e:
-            print(f"有価証券報告書の検索中にエラーが発生しました: {e}")
-            print("Step 3に進みます。")
+    # 全処理の完了
+    logger.info("\n===== 処理が完了しました =====")
 
-        # 3. XBRLデータの取得と財務情報抽出（xbrl_getter_async.py）
-        print("\n[Step 3] XBRLデータの取得と財務情報抽出")
-
-        # 有価証券報告書データファイルの存在確認
-        csv_files = [
-            config.ALL_DOCUMENTS_CSV,
-            config.FILTERED_DOCUMENTS_CSV,
-            config.SECURITIES_REPORTS_CSV,
-            config.FILTERED_SECURITIES_REPORTS_CSV,
-            config.FIXED_FILTERED_SECURITIES_REPORTS_CSV,
-        ]
-
-        xbrl_input_file = None
-        for file_path in csv_files:
-            if os.path.exists(file_path):
-                xbrl_input_file = file_path
-                print(f"XBRLデータ解析の入力ファイルとして {file_path} を使用します。")
-                break
-
-        if not xbrl_input_file:
-            print("警告: 有価証券報告書データファイルが見つかりません。")
-            print("Step 3をスキップします。")
-            return 1
-
-        try:
-            xbrl_result = xbrl_getter_async.main()
-            if xbrl_result != 0:
-                print("警告: XBRLデータの取得と財務情報抽出に問題がありました。")
-            else:
-                print("\nXBRLデータの取得と財務情報抽出が完了しました。\n")
-        except Exception as e:
-            print(f"XBRLデータの取得と財務情報抽出中にエラーが発生しました: {e}")
-            print(traceback.format_exc())
-
-        # 全処理の完了
-        print("\n===== 処理が完了しました =====")
-        print("結果ファイルは以下のディレクトリに保存されている可能性があります:")
-        print(f"- 企業情報: {config.COMPANY_INFO_JSON}")
-        print(f"- 有価証券報告書データ: {config.FIXED_FILTERED_SECURITIES_REPORTS_CSV}")
-        print(f"- 財務指標データ: {config.FINANCIAL_INDICATORS_CSV}")
-        print(f"- 財務推移データ: {config.ALL_COMPANIES_FINANCIAL_TRENDS_CSV}")
-        print(f"- 財務チャート: {config.CHARTS_DIR}")
-
-        return 0
-
-    except Exception as e:
-        print(f"\n全体の処理中にエラーが発生しました: {e}")
-        print(traceback.format_exc())
-        return 1
+    return 0
 
 
 if __name__ == "__main__":
-    try:
-        exit_code = main()
-        sys.exit(exit_code)
-    except KeyboardInterrupt:
-        print("\n\nプログラムが中断されました。")
-        sys.exit(1)
-    except Exception as e:
-        print(f"\n\nエラーが発生しました: {e}")
-        traceback.print_exc()
-        sys.exit(1)
+    # ロギングの基本設定
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+    main()
